@@ -1,0 +1,821 @@
+---
+title: "marsh.models.new"
+author: "LiaC"
+date: '2018-06-05'
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 4
+    code_folding: "show"
+    self_contained: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Clear your environment first!
+rm(list=ls())
+knitr::opts_chunk$set(root.dir="/Users/Lia/Documents/Git/Fraser-salmon/Ch1.Seasonal_diversity/code") 
+
+```
+Model selection for Ch 1 - marsh data  
+
+>*NOTES:* 
+  
+>1) Decided we should NOT include site as a random effect for all beach seine models because the low # of sites and it performed worse than regular GLMs for all.  
+  
+>2) Early on in model selection we determined that our data has a negative binomial distribution. All models started with Poisson distributions and all were overdispersed, which was corrected by the neg binomial distribution. All models here use negative binomial distribution with a log link.  
+
+>3) We used AICc to rank all models in dredge, as it penalizes the strength of likelihood more for very small sample sizes, and is more adaptive to moderate sample sizes, so that we could apply the same information criterion across all models (Harrison et al 2018; Brewer et al 2016) -- could explain better...  
+  
+>4) We used model averaging following a delta AICc of less than 4
+  
+#Chinook beach seine model 
+response = average abundance of Chinook salmon [per beach seine site]  
+This is 1 of 4 separate marsh models for (1)Chinook, (2)chum, (3)other migratory species and (4)resident species  
+  
+##Load all data - standardize variables, create subgroups from beach seine data  
+```{r dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
+#load Beach seine data aggregated by species/set; note this contains unidentified larval fish  
+b<- read.csv("/Users/Lia/Documents/Git/Fraser-salmon/all.data/beach.catch.csv")
+
+summary(b)
+sapply(b,sd)
+```
+
+```{r chin_dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
+###Separate into groups; automatically removes 3 x unidentified larval and 28 x '0' abundance rows  
+#1
+b.1<- b[which(b$Species == "Chinook"),]  
+
+### standardize continuous variables  
+library(robustHD)  
+#standardize variables to be centered on the mean (mean becomes 0) using the standardize function from robustHD  
+b.1$s.temp<-standardize(b.1$Temp.surf, centerFun = mean, scaleFun = sd)
+b.1$s.sal<-standardize(b.1$Sal.surf, centerFun = mean, scaleFun = sd)
+b.1$s.do<-standardize(b.1$DOmg.surf, centerFun = mean, scaleFun = sd)
+b.1$s.pH<-standardize(b.1$pH.surf, centerFun = mean, scaleFun = sd)
+b.1$s.J.date<-standardize(b.1$J.date, centerFun = mean, scaleFun = sd)
+###Create variable j2 which is Julian day squared in order to represent J date as quadratic relationship instead of linear  
+b.1$j2<- b.1$s.J.date^2
+
+#1 summarize by site-day  
+library(plyr)  
+b.chin<- ddply(b.1, .(Year, J.date, s.J.date, j2, Habitat, Site, s.temp, s.sal, s.do, s.pH), summarize, abundance = sum(abundance))  
+
+#plot abundance over julian day to see distribution: 
+plot(abundance~J.date, data = b.chin)
+```
+
+  
+## Habitat variables  
+Load habitat variables -- these are habitat characteristics measured at each marsh site once. See "habitat characteristics" section of model.b3.html for full descriptions
+
+```{r habitat, tidy=TRUE}  
+  
+##Add marsh habitat variables for each site  
+hab<- read.csv("/Users/Lia/Documents/Git/Fraser-salmon/all.data/site.char.marsh.csv")
+hab2<- hab[, c(1,6,8:10,13,19,20)]
+
+summary(hab2)
+
+```
+
+```{r chin habitat, tidy=TRUE} 
+b.chin.hab<- b.chin
+b.chin.hab$stnwidth<- hab2[match(b.chin.hab$Site, hab$Site),2] #add stnwidth to b.chin.hab by matching with Site #. Then repeat with all other habitat variables  
+b.chin.hab$vegelev<- hab2[match(b.chin.hab$Site, hab$Site),3]
+b.chin.hab$shtdensity<- hab2[match(b.chin.hab$Site, hab$Site),4]
+b.chin.hab$shtdenhigh<- hab2[match(b.chin.hab$Site, hab$Site),5]
+b.chin.hab$tcelev<- hab2[match(b.chin.hab$Site, hab$Site),6]
+b.chin.hab$angbank<- hab2[match(b.chin.hab$Site, hab$Site),7]
+b.chin.hab$meanturb<- hab2[match(b.chin.hab$Site, hab$Site),8]
+
+##standardize habitat variables using 'standardize' function from robustHD package  
+b.chin.hab$stnwidth<- standardize(b.chin.hab$stnwidth, centerFun = mean, scaleFun = sd); b.chin.hab$stnwidth<-as.numeric(b.chin.hab$stnwidth)
+b.chin.hab$vegelev<- standardize(b.chin.hab$vegelev, centerFun = mean, scaleFun = sd); b.chin.hab$vegelev<-as.numeric(b.chin.hab$vegelev)
+b.chin.hab$shtdensity<- standardize(b.chin.hab$shtdensity, centerFun = mean, scaleFun = sd); b.chin.hab$shtdensity<-as.numeric(b.chin.hab$shtdensity)
+b.chin.hab$shtdenhigh<- standardize(b.chin.hab$shtdenhigh, centerFun = mean, scaleFun = sd); b.chin.hab$shtdenhigh<-as.numeric(b.chin.hab$shtdenhigh)
+b.chin.hab$tcelev<- standardize(b.chin.hab$tcelev, centerFun = mean, scaleFun = sd); b.chin.hab$tcelev<-as.numeric(b.chin.hab$tcelev)
+b.chin.hab$angbank<- standardize(b.chin.hab$angbank, centerFun = mean, scaleFun = sd); b.chin.hab$angbank<-as.numeric(b.chin.hab$angbank)
+b.chin.hab$meanturb<- standardize(b.chin.hab$meanturb, centerFun = mean, scaleFun = sd); b.chin.hab$meanturb<-as.numeric(b.chin.hab$meanturb)
+```
+ 
+##VIF for collinearity of habitat variables  
+Assess variance inflation factors  
+Note that despite high collinearity of temp, when we tried to remove it the model would not converge. When we ran just temperature and removed julian day and j2, the AIC and deviance explained (r2) were considerably worse. We determined in this case it would be best to leave it in.  
+```{r chin VIF, echo=TRUE, collapse= TRUE, tidy=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+library(car)
+library(GGally)
+
+#alias function identifies covariates that are multiples of each other - in this case  have some habitat parameters causing issues.    
+alias(lm(abundance ~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + shtdenhigh + shtdensity + tcelev + angbank + meanturb, data=b.chin.hab))
+
+#We determined hab variables for Chinook should be reduced to stnwidth, meanturb, and vegelev based on significance and collinearity when doing model exploration (see marsh.chinook.Rmd).   
+vif(lm(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + meanturb, data=b.chin.hab))
+  
+
+##Pearson Corr with all vars  
+year<- b.chin.hab$Year
+jday<- b.chin.hab$s.J.date
+j2<- b.chin.hab$j2
+temp<- b.chin.hab$s.temp
+do<- b.chin.hab$s.do
+ph<- b.chin.hab$s.pH
+sal<- b.chin.hab$s.sal
+veg<- b.chin.hab$vegelev
+turb<- b.chin.hab$meanturb
+width<- b.chin.hab$stnwidth
+shootden<- b.chin.hab$shtdensity
+shtdenhigh<- b.chin.hab$shtdenhigh
+elev<- b.chin.hab$tcelev
+angbank<- b.chin.hab$angbank
+
+habcovar<- cbind.data.frame(year,jday, j2, temp, do, ph, sal, veg, turb, width, shootden, shtdenhigh, elev, angbank)
+ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot for all variables in beach seine Chinook salmon dataset")
+ggsave("/Users/Lia/Documents/Git/Fraser-salmon/Ch1.Seasonal_diversity/expl.plots/PearsonCorrAllVars_chinookmarsh.pdf")
+
+library(corrplot)
+M<- cor(habcovar)
+corrplot(M)
+corrplot.mixed(M, tl.col = "black", tl.cex = .8)
+
+```
+
+## Model selection  
+### Full model  
+The beach seine models performed better without site as a random effect (e.g. see marsh.chinook.Rmd), and only had a maximum of 5 sites in each data set, so we decided not to include site as a RE in the global models. 
+```{r chin global, tidy = TRUE}
+library(MASS)
+  
+## Chinook: full model with top habitat variables
+chin<-glm.nb(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + meanturb, data = b.chin.hab, na.action = "na.fail")
+summary(chin) #AIC 441.56, deviance explained = 100*((132.69-64.26)/132.69) = 51.57 % ((note this is same calculation that function below uses for pseudo r-squared))
+  
+chin2<-glm.nb(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + shtdensity + angbank + tcelev, data = b.chin.hab, na.action = "na.fail")
+summary(chin2) #AIC 441.55
+vif(chin2)
+## Now look at the variance inflation factors of this full model  
+vif(glm.nb(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + meanturb, data = b.chin.hab))
+
+#Test fit and assumptions of full (global) model - Jday is high (6.18) 
+library(sjPlot)
+#Check model assumptions - note that we are not actually assuming linear relationships with Jday, but can't tell this general function that.    
+sjp.glm(chin, type = "ma")  
+  
+#See pseudo R2 for full model  
+library(piecewiseSEM)
+rsquared(chin, aicc="TRUE")
+
+``` 
+  
+### Model selection - dredge    
+Then continued to dredge function to determine optimal model using AICc (chin has 63 observations)
+```{r chin model sel., tidy=TRUE, collapse=TRUE, warning=FALSE, message=FALSE}
+  
+library(MuMIn)
+library(knitr)
+# Generate model set
+model.set.chin <- dredge(chin)  
+  
+# Create model selection table
+model_table.chin <- model.sel(model.set.chin)
+options(scipen = 7)
+names(model_table.chin) <- c("(Int)", "Jday^2", "Mean turb","DO","Jday", "pH", "Sal","Temp", "Width", "Veg. elev","Year", "df", "LL", "AICc", "delta", "weight")
+kable(head(model_table.chin, n=100), digits = 3)  
+  
+# Model averaging Version 1: use all models with delta AIC score less than 4 
+model.set.chin.4 <- get.models(model.set.chin, subset = delta < 4)
+avg_model.chin.4 <- model.avg(model.set.chin.4)  
+summary(avg_model.chin.4)
+chin.ci<- data.frame(confint(avg_model.chin.4, full = TRUE)) 
+
+#Get pseudo R squared values for models up to delta < 4
+chin.4.Rsq<- rsquared(model.set.chin.4, aicc=TRUE)
+
+##write tables to .csv for easy comparison and plugging into appendix table
+avg_model_4df.chin<- data.frame(avg_model.chin.4$msTable)
+avg_model_components4.chin<- cbind(chin.4.Rsq, avg_model_4df.chin)
+r = data.frame(Coeff=rownames(avg_model_4df.chin, rep(NA, length(avg_model_components4.chin))))
+avg_model_components4.chin<- cbind(avg_model_components4.chin, r)
+avg_model_components4.chin<- avg_model_components4.chin[, -c(6,7)] 
+#write.csv(avg_model_components4.chin, "/Users/Lia/Documents/Git/Fraser-salmon/all.data/avg_model_components4_beachchin.csv")
+  
+```
+  
+## Parameter Plot  
+The results of model averaging including all top ranked models up to delta AICc 4   
+
+```{r chin AIC_plot, echo = FALSE}  
+library(cowplot)
+chin.coef <- data.frame(summary(avg_model.chin.4)[9])
+chin.coef <- cbind(chin.coef, chin.ci)
+
+names(chin.coef)[names(chin.coef) == "coefmat.full.Estimate"] <- "Estimate"
+names(chin.coef)[names(chin.coef) == "X2.5.."] <- "LowerCI"
+names(chin.coef)[names(chin.coef) == "X97.5.."] <- "UpperCI"
+
+### Order of coefficients in data frame may change - check with FINAL data
+chin.coef <- chin.coef[-1, ]
+rownames(chin.coef)[1] <- "Julian day"
+rownames(chin.coef)[2] <- "pH"
+rownames(chin.coef)[3] <- "Temp."
+rownames(chin.coef)[4] <- "Width"
+rownames(chin.coef)[5] <- "Year"
+rownames(chin.coef)[6] <- "Veg. elev."
+rownames(chin.coef)[7] <- "Sal."
+rownames(chin.coef)[8] <- "D.O."
+rownames(chin.coef)[9] <- "Mean turb."
+rownames(chin.coef)[10] <- "J. day^2"
+chin.coef$Variable <- rownames(chin.coef)
+chin.coef$Variable <- as.factor(chin.coef$Variable)
+
+##For cases with Jday^2, need to use plotmath to create symbol. This means manually creating x axis scale (note coord flip for plot), and you will need to plot the original version first to see the correct order for the labels. It labels them from top to bottom (then flipped, so bottom to top), not by factor level.
+
+labels <- expression("Julian day","Sal.","Veg. elev.","J. day"^2,"D.O.","Mean turb.","pH","Width","Temp.","Year")
+labels[[3]] <- bquote(bold(.(labels[[3]])))
+labels[[5]] <- bquote(bold(.(labels[[5]])))
+labels[[7]] <- bquote(bold(.(labels[[7]])))
+labels[[9]] <- bquote(bold(.(labels[[9]])))
+labels[[10]] <-bquote(bold(.(labels[[10]])))
+
+gg.beach.chin <- ggplot(chin.coef, aes(x = reorder(Variable, Estimate), y = Estimate)) + geom_hline(yintercept = 0, color = gray(1/2), lty = 2)
+gg.beach.chin <- gg.beach.chin + geom_pointrange(aes(x = reorder(Variable, Estimate), y = Estimate, ymin = LowerCI, ymax = UpperCI), position = position_dodge(width = 1/2), shape = 21, fatten = 6, size = 1/2, fill = "black") + scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3), labels = c("","","","","","",""), limits = c(-3,3.2)) +theme_cowplot() + ggtitle("Chinook") +
+  theme(axis.title = element_blank()) + scale_x_discrete(label = labels) + coord_flip()
+gg.beach.chin 
+```
+  
+##Check fit of top model by avg -- including all parameters with  weight >0.5
+```{r chin final fit, tidy=TRUE, message=FALSE}
+avg.chin<- glm.nb(abundance ~s.J.date + Year + s.temp + stnwidth + s.pH, data = b.chin.hab, na.action="na.fail") 
+
+summary(avg.chin)# AIC 432.9, deviance explained = 100*((129.963-64.196)/129.963) = 50.6 %
+
+
+vif(avg.chin) # - Jday and temp still above 5 (5.055 and 5.93, respectively)
+
+###Plot residuals vs. fitted values 
+plot(fitted(avg.chin), resid(avg.chin), main = "Averaged Chinook GLM", xlab = "Fitted", ylab = "Pearson residuals") 
+## q plot    
+qqnorm(x = b.chin.hab$abundance, y = resid(avg.chin), main = "Q-Q Averaged Chinook GLM"); qqline(resid(avg.chin), col = 2) 
+
+```
+  
+#Chum beach seine model
+response = average abundance of chum salmon [per beach seine site]  
+This is 2nd of 4 beach models for (1)Chinook, (2)chum, (3)other migratory species and (4)resident species
+  
+##Load all data - standardize variables, create subgroups from beach seine data  
+```{r chum dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
+ 
+###Separate into groups; automatically removes 3 x unidentified larval and 28 x '0' abundance rows  
+#2
+b.2<- b[which(b$Species == "Chum"),]  
+
+### standardize continuous variables  
+b.2$s.temp<-standardize(b.2$Temp.surf, centerFun = mean, scaleFun = sd)
+b.2$s.sal<-standardize(b.2$Sal.surf, centerFun = mean, scaleFun = sd)
+b.2$s.do<-standardize(b.2$DOmg.surf, centerFun = mean, scaleFun = sd)
+b.2$s.pH<-standardize(b.2$pH.surf, centerFun = mean, scaleFun = sd)
+b.2$s.J.date<-standardize(b.2$J.date, centerFun = mean, scaleFun = sd)
+###Create variable j2 which is Julian day squared 
+b.2$j2<- b.2$s.J.date^2
+
+#1 summarize by site-day  
+b.chum<- ddply(b.2, .(Year, J.date, s.J.date, j2, Habitat, Site, s.temp, s.sal, s.do, s.pH), summarize, abundance = sum(abundance))  
+
+#plot abundance over julian day to see distribution: 
+plot(abundance~J.date, data = b.chum)
+```
+
+  
+## Habitat variables  
+  
+```{r chum habitat, tidy=TRUE}  
+  
+##Add marsh habitat variables for each site  
+b.chum.hab<- b.chum
+b.chum.hab$stnwidth<- hab2[match(b.chum.hab$Site, hab$Site),2]   
+b.chum.hab$vegelev<- hab2[match(b.chum.hab$Site, hab$Site),3]
+b.chum.hab$shtdensity<- hab2[match(b.chum.hab$Site, hab$Site),4]
+b.chum.hab$shtdenhigh<- hab2[match(b.chum.hab$Site, hab$Site),5]
+b.chum.hab$tcelev<- hab2[match(b.chum.hab$Site, hab$Site),6]
+b.chum.hab$angbank<- hab2[match(b.chum.hab$Site, hab$Site),7]
+b.chum.hab$meanturb<- hab2[match(b.chum.hab$Site, hab$Site),8]
+
+##standardize habitat variables using 'standardize' function from robustHD package  
+b.chum.hab$stnwidth<- standardize(b.chum.hab$stnwidth, centerFun = mean, scaleFun = sd); b.chum.hab$stnwidth<-as.numeric(b.chum.hab$stnwidth)
+b.chum.hab$vegelev<- standardize(b.chum.hab$vegelev, centerFun = mean, scaleFun = sd); b.chum.hab$vegelev<-as.numeric(b.chum.hab$vegelev)
+b.chum.hab$shtdensity<- standardize(b.chum.hab$shtdensity, centerFun = mean, scaleFun = sd); b.chum.hab$shtdensity<-as.numeric(b.chum.hab$shtdensity)
+b.chum.hab$shtdenhigh<- standardize(b.chum.hab$shtdenhigh, centerFun = mean, scaleFun = sd); b.chum.hab$shtdenhigh<-as.numeric(b.chum.hab$shtdenhigh)
+b.chum.hab$tcelev<- standardize(b.chum.hab$tcelev, centerFun = mean, scaleFun = sd); b.chum.hab$tcelev<-as.numeric(b.chum.hab$tcelev)
+b.chum.hab$angbank<- standardize(b.chum.hab$angbank, centerFun = mean, scaleFun = sd); b.chum.hab$angbank<-as.numeric(b.chum.hab$angbank)
+b.chum.hab$meanturb<- standardize(b.chum.hab$meanturb, centerFun = mean, scaleFun = sd); b.chum.hab$meanturb<-as.numeric(b.chum.hab$meanturb)
+```
+ 
+##VIF for collinearity of habitat variables  
+Assess variance inflation factors   
+```{r chum VIF, echo=TRUE, collapse= TRUE, tidy=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+
+#alias function identifies covariates that are multiples of each other - in this case  have some habitat parameters causing issues.    
+alias(lm(abundance ~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + shtdenhigh + shtdensity + tcelev + angbank + meanturb, data=b.chum.hab))
+
+#We determined hab variables for Chum should be reduced to meanturb, and vegelev based on significance and collinearity when doing model exploration.   
+vif(lm(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + vegelev + meanturb, data=b.chum.hab)) ##all less than 5
+  
+
+##Pearson Corr with all vars  
+year<- b.chum.hab$Year
+jday<- b.chum.hab$s.J.date
+j2<- b.chum.hab$j2
+temp<- b.chum.hab$s.temp
+do<- b.chum.hab$s.do
+ph<- b.chum.hab$s.pH
+sal<- b.chum.hab$s.sal
+veg<- b.chum.hab$vegelev
+turb<- b.chum.hab$meanturb
+width<- b.chum.hab$stnwidth
+shootden<- b.chum.hab$shtdensity
+shtdenhigh<- b.chum.hab$shtdenhigh
+elev<- b.chum.hab$tcelev
+angbank<- b.chum.hab$angbank
+
+habcovar<- cbind.data.frame(year,jday, j2, temp, do, ph, sal, veg, turb, width, shootden, shtdenhigh, elev, angbank)
+ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot for all variables in beach seine chum salmon dataset")
+ggsave("/Users/Lia/Documents/Git/Fraser-salmon/Ch1.Seasonal_diversity/expl.plots/PearsonCorrAllVars_chummarsh.pdf")
+
+```
+
+## Model selection  
+### Full model  
+```{r chum global, tidy = TRUE}
+
+## Chum: full model with top habitat variables
+chum<-glm.nb(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + vegelev + meanturb, data = b.chum.hab, na.action = "na.fail")
+summary(chum) #AIC 233.64
+  
+## Now look at the variance inflation factors of this full model  
+vif(chum)
+  
+#Check model assumptions - note that we are not actually assuming linear relationships with Jday, but can't tell this general function that.    
+sjp.glm(chum, type = "ma")  
+  
+#See pseudo R2 for full model  
+rsquared(chum, aicc=TRUE)
+
+``` 
+  
+### Model selection - dredge    
+Then continued to dredge function to determine optimal model using AICc (chum has 31 observations). Note that due to the small sample size, even the top model has a very low weight (0.08), and consequently many models (42) are included in the averaging set due to very small changes in delta AICc with different iterations. 
+```{r chum model sel., tidy=TRUE, collapse=TRUE, warning=FALSE, message=FALSE}
+  
+# Generate model set
+model.set.chum <- dredge(chum)  
+  
+# Create model selection table
+model_table.chum <- model.sel(model.set.chum)
+options(scipen = 7)
+names(model_table.chum) <- c("(Int)", "Jday^2", "Mean turb","DO","Jday", "pH", "Sal","Temp", "Veg. elev","Year", "df", "LL", "AICc", "delta", "weight")
+kable(head(model_table.chum, n=100), digits = 3)  
+  
+# Model averaging Version 1: use all models with delta AIC score less than 4 
+model.set.chum.4 <- get.models(model.set.chum, subset = delta < 4)
+avg_model.chum.4 <- model.avg(model.set.chum.4)  
+summary(avg_model.chum.4)
+chum.ci<- data.frame(confint(avg_model.chum.4, full = TRUE)) 
+
+#Get pseudo R squared values for models up to delta < 4
+chum.4.Rsq<- rsquared(model.set.chum.4, aicc=TRUE)
+
+##write tables to .csv for easy comparison and plugging into appendix table
+avg_model_4df.chum<- data.frame(avg_model.chum.4$msTable)
+avg_model_components4.chum<- cbind(chum.4.Rsq, avg_model_4df.chum)
+r = data.frame(Coeff=rownames(avg_model_4df.chum, rep(NA, length(avg_model_components4.chum))))
+avg_model_components4.chum<- cbind(avg_model_components4.chum, r)
+avg_model_components4.chum<- avg_model_components4.chum[, -c(6,7)] 
+#write.csv(avg_model_components4.chum, "/Users/Lia/Documents/Git/Fraser-salmon/all.data/avg_model_components4_beachchum.csv")
+  
+```
+  
+## Parameter Plot  
+The results of model averaging including all top ranked models up to delta AICc 4   
+
+```{r chum AIC_plot, echo = FALSE}  
+chum.coef <- data.frame(summary(avg_model.chum.4)[9])
+chum.coef <- cbind(chum.coef, chum.ci)
+
+names(chum.coef)[names(chum.coef) == "coefmat.full.Estimate"] <- "Estimate"
+names(chum.coef)[names(chum.coef) == "X2.5.."] <- "LowerCI"
+names(chum.coef)[names(chum.coef) == "X97.5.."] <- "UpperCI"
+
+### Order of coefficients in data frame may change - check with FINAL data
+chum.coef <- chum.coef[-1, ]
+rownames(chum.coef)[2] <- "Julian day"
+rownames(chum.coef)[9] <- "pH"
+rownames(chum.coef)[3] <- "Temperature"
+rownames(chum.coef)[5] <- "Year"
+rownames(chum.coef)[6] <- "Veg. elevation"
+rownames(chum.coef)[7] <- "Salinity"
+rownames(chum.coef)[1] <- "Diss. oxygen"
+rownames(chum.coef)[4] <- "Mean turbidity"
+rownames(chum.coef)[8] <- "Julian day^2"
+chum.coef$Variable <- rownames(chum.coef)
+chum.coef$Variable <- as.factor(chum.coef$Variable)
+
+##For cases with Jday^2, need to use plotmath to create symbol. This means manually creating x axis scale (note coord flip for plot), and you will need to plot the original version first to see the correct order for the labels. It labels them from top to bottom (then flipped, so bottom to top), not by factor level.
+labels <- expression("Julian day","J. day"^2,"Mean turb.", "Temp.", "Sal.","Veg. elev.","pH","Year","D.O.")
+labels[[1]] <- bquote(bold(.(labels[[1]])))
+labels[[9]] <- bquote(bold(.(labels[[9]])))
+
+
+gg.beach.chum <- ggplot(chum.coef, aes(x = reorder(Variable, Estimate), y = Estimate)) + geom_hline(yintercept = 0, color = gray(1/2), lty = 2)
+gg.beach.chum <- gg.beach.chum + geom_pointrange(aes(x = reorder(Variable, Estimate), y = Estimate, ymin = LowerCI, ymax = UpperCI), position = position_dodge(width = 1/2), shape = 21, fatten = 6, size = 1/2, fill = "black") +theme_cowplot() + ggtitle("Chum") +
+  theme(axis.title = element_blank()) + scale_x_discrete(labels=labels) + scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3), labels = c("","","","","","",""), limits = c(-3,3.2)) +
+  coord_flip()
+gg.beach.chum
+```
+  
+##Check fit of top model by avg -- including all parameters with  weight >0.5  
+
+```{r chum final fit, tidy=TRUE, message=FALSE}  
+avg.chum<- glm.nb(abundance ~s.do, data = b.chum.hab, na.action="na.fail") 
+
+summary(avg.chum)# AIC 226.03  
+
+# vif(avg.chum) ## Can't run VIF because only one variable!
+
+###Plot residuals vs. fitted values 
+plot(fitted(avg.chum), resid(avg.chum), main = "Averaged Chum GLM", xlab = "Fitted", ylab = "Pearson residuals") 
+## q plot    
+qqnorm(x = b.chum.hab$abundance, y = resid(avg.chum), main = "Q-Q Averaged Chum GLM"); qqline(resid(avg.chum), col = 2) 
+
+```
+ 
+
+#Migratory beach seine model
+response = average abundance of migratory fishes [per beach seine site]  
+This is 3rd of 4 beach models for (1)Chinook, (2)migra, (3)other migratory species and (4)resident species
+  
+##Load all data - standardize variables, create subgroups from beach seine data 
+```{r migra dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
+  
+###Grab just migratory catch - automatically removes any 0s or unidentified species.  
+#3  
+b.3<- b[which(b$class == "migratory"),]; b.3<- b.3[which(b.3$Species != "Chinook"),]; b.3<- b.3[which(b.3$Species != "Chum"),]
+ 
+### standardize continuous variables  
+b.3$s.temp<-standardize(b.3$Temp.surf, centerFun = mean, scaleFun = sd)
+b.3$s.sal<-standardize(b.3$Sal.surf, centerFun = mean, scaleFun = sd)
+b.3$s.do<-standardize(b.3$DOmg.surf, centerFun = mean, scaleFun = sd)
+b.3$s.pH<-standardize(b.3$pH.surf, centerFun = mean, scaleFun = sd)
+b.3$s.J.date<-standardize(b.3$J.date, centerFun = mean, scaleFun = sd)
+###Create variable j2 which is Julian day squared 
+b.3$j2<- b.3$s.J.date^2
+
+#1 summarize by site-day  
+b.migra<- ddply(b.3, .(Year, J.date, s.J.date, j2, Habitat, Site, s.temp, s.sal, s.do, s.pH), summarize, abundance = sum(abundance))  
+
+#plot abundance over julian day to see distribution: 
+plot(abundance~J.date, data = b.migra)
+```
+  
+## Habitat variables  
+  
+```{r migra habitat, tidy=TRUE}  
+  
+##Add marsh habitat variables for each site  
+b.migra.hab<- b.migra
+b.migra.hab$stnwidth<- hab2[match(b.migra.hab$Site, hab$Site),2]   
+b.migra.hab$vegelev<- hab2[match(b.migra.hab$Site, hab$Site),3]
+b.migra.hab$shtdensity<- hab2[match(b.migra.hab$Site, hab$Site),4]
+b.migra.hab$shtdenhigh<- hab2[match(b.migra.hab$Site, hab$Site),5]
+b.migra.hab$tcelev<- hab2[match(b.migra.hab$Site, hab$Site),6]
+b.migra.hab$angbank<- hab2[match(b.migra.hab$Site, hab$Site),7]
+b.migra.hab$meanturb<- hab2[match(b.migra.hab$Site, hab$Site),8]
+
+##standardize habitat variables using 'standardize' function from robustHD package  
+b.migra.hab$stnwidth<- standardize(b.migra.hab$stnwidth, centerFun = mean, scaleFun = sd); b.migra.hab$stnwidth<-as.numeric(b.migra.hab$stnwidth)
+b.migra.hab$vegelev<- standardize(b.migra.hab$vegelev, centerFun = mean, scaleFun = sd); b.migra.hab$vegelev<-as.numeric(b.migra.hab$vegelev)
+b.migra.hab$shtdensity<- standardize(b.migra.hab$shtdensity, centerFun = mean, scaleFun = sd); b.migra.hab$shtdensity<-as.numeric(b.migra.hab$shtdensity)
+b.migra.hab$shtdenhigh<- standardize(b.migra.hab$shtdenhigh, centerFun = mean, scaleFun = sd); b.migra.hab$shtdenhigh<-as.numeric(b.migra.hab$shtdenhigh)
+b.migra.hab$tcelev<- standardize(b.migra.hab$tcelev, centerFun = mean, scaleFun = sd); b.migra.hab$tcelev<-as.numeric(b.migra.hab$tcelev)
+b.migra.hab$angbank<- standardize(b.migra.hab$angbank, centerFun = mean, scaleFun = sd); b.migra.hab$angbank<-as.numeric(b.migra.hab$angbank)
+b.migra.hab$meanturb<- standardize(b.migra.hab$meanturb, centerFun = mean, scaleFun = sd); b.migra.hab$meanturb<-as.numeric(b.migra.hab$meanturb)
+```
+ 
+##VIF for collinearity of habitat variables  
+Assess variance inflation factors   
+```{r migra VIF, echo=TRUE, collapse= TRUE, tidy=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+#alias function identifies covariates that are multiples of each other - in this case  have some habitat parameters causing issues.    
+alias(lm(abundance ~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + shtdenhigh + shtdensity + tcelev + angbank + meanturb, data=b.migra.hab))
+
+#We determined hab variables for Migratory should be reduced to meanturb, and vegelev based on significance and collinearity when doing model exploration.   
+vif(lm(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + meanturb, data=b.migra.hab)) ##all less than 5
+  
+
+##Pearson Corr with all vars  
+year<- b.migra.hab$Year
+jday<- b.migra.hab$s.J.date
+j2<- b.migra.hab$j2
+temp<- b.migra.hab$s.temp
+do<- b.migra.hab$s.do
+ph<- b.migra.hab$s.pH
+sal<- b.migra.hab$s.sal
+veg<- b.migra.hab$vegelev
+turb<- b.migra.hab$meanturb
+width<- b.migra.hab$stnwidth
+shootden<- b.migra.hab$shtdensity
+shtdenhigh<- b.migra.hab$shtdenhigh
+elev<- b.migra.hab$tcelev
+angbank<- b.migra.hab$angbank
+
+habcovar<- cbind.data.frame(year,jday, j2, temp, do, ph, sal, veg, turb, width, shootden, shtdenhigh, elev, angbank)
+ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot for all variables in beach seine migratory fish dataset")
+ggsave("/Users/Lia/Documents/Git/Fraser-salmon/Ch1.Seasonal_diversity/expl.plots/PearsonCorrAllVars_migratorymarsh.pdf")
+
+```
+
+## Model selection  
+### Full model  
+Due to the very small sample size for other migratory fishes (# observations = 17), there were issues with the model assumptions with several parameters, and the global model was reduced to the maximum number of parameters than met assumptions and allowed the model to converge. Note that models with fewer, different parameters also converged (namely with temperature but without mean turb and stnwidth), but the AIC was worse and we felt the global model should include as many parameters as possible. The outliers in this data set caused a few parameters to always give errors: Jdate, J2 and pH. These were removed from the global model. Year had VIF over 10, so removed and AIC improved by delta 2 and VIF all were reduced to below 1.       
+```{r migra global, tidy = TRUE}
+
+## Migratory: full model with top habitat variables
+migra<-glm.nb(abundance~  s.do + s.sal + stnwidth + vegelev + meanturb, data = b.migra.hab, na.action = "na.fail")
+summary(migra) #AIC 104.31
+vif(migra)
+
+  
+#Check model assumptions - note that we are not actually assuming linear relationships with Jday, but can't tell this general function that.    
+sjp.glm(migra, type = "ma")  
+  
+#See pseudo R2 for full model  
+rsquared(migra, aicc=TRUE)
+
+``` 
+  
+### Model selection - dredge    
+Then continued to dredge function to determine optimal model using AICc (migra has 17 observations).  
+```{r migra model sel., tidy=TRUE, collapse=TRUE, warning=FALSE, message=FALSE}
+  
+# Generate model set
+model.set.migra <- dredge(migra)  
+  
+# Create model selection table
+model_table.migra <- model.sel(model.set.migra)
+options(scipen = 7)
+names(model_table.migra) <- c("(Int)", "Mean turb","DO","Sal","Width", "Veg. elev", "df", "LL", "AICc", "delta", "weight")
+kable(head(model_table.migra, n=100), digits = 3)  
+  
+# Model averaging Version 1: use all models with delta AIC score less than 4 
+model.set.migra.4 <- get.models(model.set.migra, subset = delta < 4)
+avg_model.migra.4 <- model.avg(model.set.migra.4)  
+summary(avg_model.migra.4)
+migra.ci<- data.frame(confint(avg_model.migra.4, full = TRUE)) 
+
+#Get pseudo R squared values for models up to delta < 4
+migra.4.Rsq<- rsquared(model.set.migra.4, aicc=TRUE)
+
+##write tables to .csv for easy comparison and plugging into appendix table
+avg_model_4df.migra<- data.frame(avg_model.migra.4$msTable)
+avg_model_components4.migra<- cbind(migra.4.Rsq, avg_model_4df.migra)
+r = data.frame(Coeff=rownames(avg_model_4df.migra, rep(NA, length(avg_model_components4.migra))))
+avg_model_components4.migra<- cbind(avg_model_components4.migra, r)
+avg_model_components4.migra<- avg_model_components4.migra[, -c(6,7)] 
+#write.csv(avg_model_components4.migra, "/Users/Lia/Documents/Git/Fraser-salmon/all.data/avg_model_components4_beachmigratory2.csv")
+  
+```
+  
+## Parameter Plot  
+The results of model averaging including all top ranked models up to delta AICc 4   
+
+```{r migra AIC_plot, echo = FALSE}  
+migra.coef <- data.frame(summary(avg_model.migra.4)[9])
+migra.coef <- cbind(migra.coef, migra.ci)
+
+names(migra.coef)[names(migra.coef) == "coefmat.full.Estimate"] <- "Estimate"
+names(migra.coef)[names(migra.coef) == "X2.5.."] <- "LowerCI"
+names(migra.coef)[names(migra.coef) == "X97.5.."] <- "UpperCI"
+
+### Order of coefficients in data frame may change - check with FINAL data
+migra.coef <- migra.coef[-1, ]
+rownames(migra.coef)[2] <- "Veg. elev."
+rownames(migra.coef)[1] <- "Sal."
+rownames(migra.coef)[5] <- "D.O."
+rownames(migra.coef)[3] <- "Mean turb."
+rownames(migra.coef)[4] <- "Width"
+migra.coef$Variable <- rownames(migra.coef)
+migra.coef$Variable <- as.factor(migra.coef$Variable)
+
+labels <- expression("Sal.","D.O.","Width","Mean turb.","Veg. elev.")
+labels[[1]] <- bquote(bold(.(labels[[1]])))
+labels[[5]] <- bquote(bold(.(labels[[5]])))
+
+gg.beach.migra <- ggplot(migra.coef, aes(x = reorder(Variable, Estimate), y = Estimate)) + geom_hline(yintercept = 0, color = gray(1/2), lty = 2)
+gg.beach.migra <- gg.beach.migra + geom_pointrange(aes(x = reorder(Variable, Estimate), y = Estimate, ymin = LowerCI, ymax = UpperCI), position = position_dodge(width = 1/2), shape = 21, fatten = 6, size = 1/2, fill = "black") + scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3), labels = c("","","","","","",""), limits = c(-3,3.2)) +theme_cowplot() + ggtitle("Migratory") + scale_x_discrete(labels=labels) +
+  theme(axis.title = element_blank()) + 
+  coord_flip()
+gg.beach.migra
+```
+  
+##Check fit of top model by avg -- including all parameters with  weight >0.5  
+
+```{r migra final fit, tidy=TRUE, message=FALSE}
+avg.migra<- glm.nb(abundance ~s.sal + vegelev, data = b.migra.hab, na.action="na.fail") 
+
+summary(avg.migra)# AIC 102.88 
+
+vif(avg.migra) #very low
+
+###Plot residuals vs. fitted values 
+plot(fitted(avg.migra), resid(avg.migra), main = "Averaged Migratory GLM", xlab = "Fitted", ylab = "Pearson residuals") 
+## q plot    
+qqnorm(x = b.migra.hab$abundance, y = resid(avg.migra), main = "Q-Q Averaged Migratory GLM"); qqline(resid(avg.migra), col = 2) 
+
+```
+ 
+ 
+#Resident beach seine model
+response = average abundance of residents [per beach seine site]  
+This is 4th of 4 beach models for (1)Chinook, (2)res, (3)other migratory species and (4)resident species
+  
+##Load all data - standardize variables, create subgroups from beach seine data 
+```{r res dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
+  
+###Grab just resident catch - automatically removes any 0s or unidentified species.  
+#4  
+b.4<- b[which(b$class == "resident"),]
+  
+### standardize continuous variables  
+b.4$s.temp<-standardize(b.4$Temp.surf, centerFun = mean, scaleFun = sd)
+b.4$s.sal<-standardize(b.4$Sal.surf, centerFun = mean, scaleFun = sd)
+b.4$s.do<-standardize(b.4$DOmg.surf, centerFun = mean, scaleFun = sd)
+b.4$s.pH<-standardize(b.4$pH.surf, centerFun = mean, scaleFun = sd)
+b.4$s.J.date<-standardize(b.4$J.date, centerFun = mean, scaleFun = sd)
+###Create variable j2 which is Julian day squared 
+b.4$j2<- b.4$s.J.date^2
+
+#1 summarize by site-day  
+b.res<- ddply(b.4, .(Year, J.date, s.J.date, j2, Habitat, Site, s.temp, s.sal, s.do, s.pH), summarize, abundance = sum(abundance))  
+
+#plot abundance over julian day to see distribution: 
+plot(abundance~J.date, data = b.res)
+```
+  
+## Habitat variables  
+  
+```{r res habitat, tidy=TRUE}  
+  
+##Add marsh habitat variables for each site  
+b.res.hab<- b.res
+b.res.hab$stnwidth<- hab2[match(b.res.hab$Site, hab$Site),2]   
+b.res.hab$vegelev<- hab2[match(b.res.hab$Site, hab$Site),3]
+b.res.hab$shtdensity<- hab2[match(b.res.hab$Site, hab$Site),4]
+b.res.hab$shtdenhigh<- hab2[match(b.res.hab$Site, hab$Site),5]
+b.res.hab$tcelev<- hab2[match(b.res.hab$Site, hab$Site),6]
+b.res.hab$angbank<- hab2[match(b.res.hab$Site, hab$Site),7]
+b.res.hab$meanturb<- hab2[match(b.res.hab$Site, hab$Site),8]
+
+##standardize habitat variables using 'standardize' function from robustHD package  
+b.res.hab$stnwidth<- standardize(b.res.hab$stnwidth, centerFun = mean, scaleFun = sd); b.res.hab$stnwidth<-as.numeric(b.res.hab$stnwidth)
+b.res.hab$vegelev<- standardize(b.res.hab$vegelev, centerFun = mean, scaleFun = sd); b.res.hab$vegelev<-as.numeric(b.res.hab$vegelev)
+b.res.hab$shtdensity<- standardize(b.res.hab$shtdensity, centerFun = mean, scaleFun = sd); b.res.hab$shtdensity<-as.numeric(b.res.hab$shtdensity)
+b.res.hab$shtdenhigh<- standardize(b.res.hab$shtdenhigh, centerFun = mean, scaleFun = sd); b.res.hab$shtdenhigh<-as.numeric(b.res.hab$shtdenhigh)
+b.res.hab$tcelev<- standardize(b.res.hab$tcelev, centerFun = mean, scaleFun = sd); b.res.hab$tcelev<-as.numeric(b.res.hab$tcelev)
+b.res.hab$angbank<- standardize(b.res.hab$angbank, centerFun = mean, scaleFun = sd); b.res.hab$angbank<-as.numeric(b.res.hab$angbank)
+b.res.hab$meanturb<- standardize(b.res.hab$meanturb, centerFun = mean, scaleFun = sd); b.res.hab$meanturb<-as.numeric(b.res.hab$meanturb)
+```
+ 
+##VIF for collinearity of habitat variables  
+Assess variance inflation factors   
+```{r res VIF, echo=TRUE, collapse= TRUE, tidy=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+#alias function identifies covariates that are multiples of each other - in this case  have some habitat parameters causing issues.    
+alias(lm(abundance ~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnwidth + vegelev + shtdenhigh + shtdensity + tcelev + angbank + meanturb, data=b.res.hab))
+
+#We determined hab variables for Resident should be reduced to shoot density, angbank, and tcelev based on significance and collinearity when doing model exploration.   
+vif(lm(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + shtdensity + tcelev + angbank, data=b.res.hab)) ##all less than 5
+  
+
+##Pearson Corr with all vars  
+year<- b.res.hab$Year
+jday<- b.res.hab$s.J.date
+j2<- b.res.hab$j2
+temp<- b.res.hab$s.temp
+do<- b.res.hab$s.do
+ph<- b.res.hab$s.pH
+sal<- b.res.hab$s.sal
+veg<- b.res.hab$vegelev
+turb<- b.res.hab$meanturb
+width<- b.res.hab$stnwidth
+shootden<- b.res.hab$shtdensity
+shtdenhigh<- b.res.hab$shtdenhigh
+elev<- b.res.hab$tcelev
+angbank<- b.res.hab$angbank
+
+habcovar<- cbind.data.frame(year,jday, j2, temp, do, ph, sal, veg, turb, width, shootden, shtdenhigh, elev, angbank)
+ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot for all variables in beach seine resident fish dataset")
+ggsave("/Users/Lia/Documents/Git/Fraser-salmon/Ch1.Seasonal_diversity/expl.plots/PearsonCorrAllVars_residentmarsh.pdf")
+
+```
+
+## Model selection  
+### Full model  
+Note shoot density came out as a stronger habitat variable than turbidity in this model (delta AIC ~5, stronger weight to top model when run without shtden or meanturb). However, it was strongly correlated to turbidity (0.779) and also highly correlated to stnwidth (0.537). To avoid removing two habitat variables, and to remain consistent with the other global models, we decided not to use shoot density. Note that temperature was very highly correlated to Julian day, J2, and salinity in this data set, and caused several of the VIF values to inflate. Once removed, all VIFs dropped to below 2 and the AIC improved, so it was removed from the global model.       
+```{r res global, tidy = TRUE}
+ 
+## Resident: full model with top habitat variables  
+res<-glm.nb(abundance~ s.J.date + j2 + Year + s.sal + s.do + s.pH + meanturb + vegelev + stnwidth, data = b.res.hab, na.action = "na.fail")
+summary(res) #749.43, VIF below 2  
+
+res2<-glm.nb(abundance~ s.J.date + j2 + Year + s.sal + s.do + s.pH + shtdensity + vegelev, data = b.res.hab, na.action = "na.fail")
+summary(res2) #744.11, VIF still below 2
+
+
+vif(res)
+  
+#Check model assumptions - note that several parameters have non ideal relationships. Also note that there are several outliers, but these are real so we do not remove them (despite what this test says).   
+sjp.glm(res, type = "ma")  
+  
+#See pseudo R2 for full model  
+rsquared(res, aicc=TRUE)
+
+``` 
+  
+### Model selection - dredge    
+Then continued to dredge function to determine optimal model using AICc (res has 17 observations).  
+```{r res model sel., tidy=TRUE, collapse=TRUE, warning=FALSE, message=FALSE}
+  
+# Generate model set
+model.set.res<- dredge(res)
+# Create model selection table
+model_table.res <- model.sel(model.set.res)
+options(scipen = 7)
+names(model_table.res) <- c("(Int)", "Julian day^2","Mean turb","DO","Julian day","pH","Sal", "Channel width","Veg. elev.","Year", "df", "LL", "AICc", "delta", "weight")
+kable(head(model_table.res, n=100), digits = 3)  
+  
+# Model averaging Version 1: use all models with delta AIC score less than 4 
+model.set.res.4 <- get.models(model.set.res, subset = delta < 4)
+avg_model.res.4 <- model.avg(model.set.res.4)  
+summary(avg_model.res.4)
+res.ci<- data.frame(confint(avg_model.res.4, full = TRUE)) 
+
+#Get pseudo R squared values for models up to delta < 4
+res.4.Rsq<- rsquared(model.set.res.4, aicc=TRUE)
+
+##write tables to .csv for easy comparison and plugging into appendix table
+avg_model_4df.res<- data.frame(avg_model.res.4$msTable)
+avg_model_components4.res<- cbind(res.4.Rsq, avg_model_4df.res)
+r = data.frame(Coeff=rownames(avg_model_4df.res, rep(NA, length(avg_model_components4.res))))
+avg_model_components4.res<- cbind(avg_model_components4.res, r)
+avg_model_components4.res<- avg_model_components4.res[, -c(6,7)] 
+#write.csv(avg_model_components4.res, "/Users/Lia/Documents/Git/Fraser-salmon/all.data/avg_model_components4_beachresident.csv")
+  
+```
+  
+## Parameter Plot  
+The results of model averaging including all top ranked models up to delta AICc 4   
+
+```{r res AIC_plot, echo = FALSE}  
+res.coef <- data.frame(summary(avg_model.res.4)[9])
+res.coef <- cbind(res.coef, res.ci)
+
+names(res.coef)[names(res.coef) == "coefmat.full.Estimate"] <- "Estimate"
+names(res.coef)[names(res.coef) == "X2.5.."] <- "LowerCI"
+names(res.coef)[names(res.coef) == "X97.5.."] <- "UpperCI"
+
+### Order of coefficients in data frame may change - check with FINAL data
+res.coef <- res.coef[-1, ]
+res.coef$Variable <- rownames(res.coef)
+res.coef$Variable <- as.factor(res.coef$Variable)
+
+##For cases with Jday^2, need to use plotmath to create symbol. This means manually creating x axis scale (note coord flip for plot), and you will need to plot the original version first to see the correct order for the labels. It labels them from top to bottom (then flipped, so bottom to top), not by factor level.
+labels <- expression("J. day"^2,"pH","Width","Sal.","Veg. elev.","D.O.","Mean turb.","Julian day","Year")
+labels[[1]] <- bquote(bold(.(labels[[1]])))
+labels[[2]] <- bquote(bold(.(labels[[2]])))
+labels[[7]] <- bquote(bold(.(labels[[7]])))
+labels[[8]] <- bquote(bold(.(labels[[8]])))
+labels[[9]] <- bquote(bold(.(labels[[9]])))
+
+gg.beach.res <- ggplot(res.coef, aes(x = reorder(Variable, Estimate), y = Estimate)) + geom_hline(yintercept = 0, color = gray(1/2), lty = 2)
+gg.beach.res <- gg.beach.res + geom_pointrange(aes(x = reorder(Variable, Estimate), y = Estimate, ymin = LowerCI, ymax = UpperCI), position = position_dodge(width = 1/2), shape = 21, fatten = 6, size = 1/2, fill = "black") +theme_cowplot() + ggtitle("Resident") +
+  theme(axis.title = element_blank()) + scale_x_discrete(labels=labels) + scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3), labels = c("","","","","","",""), limits = c(-3,3.2)) +
+  coord_flip()
+gg.beach.res
+```
+  
+##Check fit of top model by avg -- including all parameters with  weight >0.5  
+
+```{r res final fit, tidy=TRUE, message=FALSE}
+avg.res<- glm.nb(abundance ~Year + s.J.date + j2 + meanturb + s.pH, data = b.res.hab, na.action="na.fail") 
+
+summary(avg.res)
+
+vif(avg.res) 
+
+###Plot residuals vs. fitted values 
+plot(fitted(avg.res), resid(avg.res), main = "Averaged Resident GLM", xlab = "Fitted", ylab = "Pearson residuals") 
+## q plot    
+qqnorm(x = b.res.hab$abundance, y = resid(avg.res), main = "Q-Q Averaged Resident GLM"); qqline(resid(avg.res), col = 2) 
+
+```
+ 
