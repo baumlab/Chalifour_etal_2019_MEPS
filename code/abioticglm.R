@@ -1,7 +1,6 @@
 ### Abiotic GLMs for Chalifour et al 2019 MEPS ms
 
 library(here)
-here()
 
 ##load abiotic data
 all<- read.csv("data/all_clean.csv")
@@ -22,42 +21,36 @@ plot(pH.surf~J.date, data = all)
 plot(DOmg.surf~J.date, data = all)
 
 library(robustHD)
-#Use standardize function and then convert to numeric (from atomic vector)
-all$s.temp<-as.numeric(standardize(all$Temp.surf, centerFun = mean, scaleFun = sd))
-all$s.sal<-as.numeric(standardize(all$Sal.surf, centerFun = mean, scaleFun = sd))
-all$s.do<-as.numeric(standardize(all$DOmg.surf, centerFun = mean, scaleFun = sd))
-all$s.pH<-as.numeric(standardize(all$pH.surf, centerFun = mean, scaleFun = sd))
-
-
 
 #test for normality 
 shapiro.test(sample(all$Temp.surf, 100))
 shapiro.test(sample(all$Sal.surf, 100))
-shapiro.test(sample(all$pH.surf, 100)) #still sig at low sample
-shapiro.test(sample(all$DOmg.surf, 100)) #still sig at low sample
+shapiro.test(sample(all$pH.surf, 100)) 
+shapiro.test(sample(all$DOmg.surf, 100)) 
 
+#models - first tested glm then glmm with site as a random factor. Reported glmm results
 
-summary(t<-glm(Temp.surf~Year + Habitat, data=all))
+###temp model - used glmm results
+summary(t<-glm(Temp.surf~Year + Habitat, data=all)) #explore linear temperature model
 summary(glm(Temp.surf~Year + Habitat + month, data=all))
-###TEMP MODEL
+
 temp<-lmer(Temp.surf~Year + Habitat + month + (1|Site), data=all, verbose = 1)
 summary(temp)
 
 AIC(temp)
 plot(temp)
 
-
-summary(glm(s.temp~Year + Habitat, data=all))
-## prefer unstandardized model b/c can understand changes to temp relative to diff factors 
-
+#salinity model
 summary(glm(Sal.surf~Year + Habitat, data=all))
 sal<-lmer(Sal.surf~Year + Habitat + month + (1|Site), data=all)
 summary(sal)
 
+#pH model
 summary(glm(pH.surf~Year + Habitat, data=all))
 pH<- lmer(pH.surf~Year + Habitat + month + (1|Site), data=all)
 summary(pH)
 
+#DO model
 summary(glm(DOmg.surf~Year + Habitat, data=all))
 do<- lmer(DOmg.surf~Year + Habitat + month + (1|Site), data=all)
 summary(do) 

@@ -2,7 +2,7 @@
 
 ## Model output panel plot
 
-##Note code for original plots is in purse.models.new.Rmd and marsh.models.new.Rmd --> load data and run parameter plot for each first.  
+##Note code for original plots is in pursecatchmodels.Rmd and marshcatchmodels.Rmd --> load data and run parameter plot for each first. Here we simply convert the plots to grobs and arrange together in a grid  
 
 #plot  
 

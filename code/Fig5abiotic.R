@@ -1,7 +1,6 @@
 #Fig_5_Chalifour_et_al_2019_MEPS_revised
 #Abiotic_parameter_panel_plot
 library(here)
-here()
 
 ##load abiotic data
 all<- read.csv("data/all_clean.csv")
@@ -51,17 +50,18 @@ pdf("final.figures/Fig5.pdf", width = 15.35, height = 7.48, pointsize = 16)
 
 par(mfrow = c(2,3), mar = c(1,1.5,1,1), oma = c(2, 1.5, 1, 0.5), mgp = c(0,0.5,0), cex = 1)
 # a) temp by month
-plot(x=temp2$month.numeric, y=temp2$temp2, type = 'n', xlim=c(0.9, 8), las=1, ylim=c(3, 21), ylab = "", main="", lwd=1, bty = "l", xlab = " ", xaxt='n', yaxt='n') %/%
-  lines(temp2~month.numeric, data=t16[c(t16$Habitat == "Marsh"),], col=alpha("black", 0.7), lty=4) %/%  
+plot(x=temp2$month.numeric, y=temp2$temp2, type = 'n', xlim=c(0.9, 8), las=1, ylim=c(3, 21), ylab = "", main="", lwd=1, bty = "l", xlab = " ", xaxt='n', yaxt='n') %/% 
+  lines(temp2~month.numeric, data=t16[c(t16$Habitat == "Marsh"),], col=alpha("black", 0.7), lty=4) %/%
   lines(temp2~month.numeric, data=t16[c(t16$Habitat == "Eelgrass"),], col=alpha("black", 0.7), lty=5) %/% 
-  lines(temp2~month.numeric, data=t16[c(t16$Habitat == "Sand flat"),], col=alpha("black", 0.7)) %/% lines(temp2~month.numeric, data=t17[c(t17$Habitat == "Marsh"),], col=alpha("gray60", 0.9), lty=4) %/% 
+  lines(temp2~month.numeric, data=t16[c(t16$Habitat == "Sand flat"),], col=alpha("black", 0.7)) %/%
+  lines(temp2~month.numeric, data=t17[c(t17$Habitat == "Marsh"),], col=alpha("gray60", 0.9), lty=4) %/%
   lines(temp2~month.numeric, data=t17[c(t17$Habitat == "Eelgrass"),], col=alpha("gray60", 0.9), lty=5) %/% 
   lines(temp2~month.numeric, data=t17[c(t17$Habitat == "Sand flat"),], col=alpha("gray60", 0.9)) %/%
   arrows(x0, temp2$temp2.min, x1=x0, temp2$temp2.max, length=0.05, angle= 90, code=3, col="gray") %/%
   points(x=x0, y=temp2$temp2, type='p', bg = col2, pch=c(21,24,22)[as.numeric(temp2$Habitat)])%/%
   axis(side = 1, at = c(1,2,3,4,5,6,7,8), labels= c("Mar","", "May","", "Jul", "","Sept",""), tck =-0.02) %/%
   mtext(expression(paste("Temperature", ~degree, "C")), side = 2, line = 1.5, outer = FALSE) %/%
-  text(1,21, "a", font = 2) %/%
+  text(1,21, "A", font = 2) %/%
   axis(side = 2, at = seq(3,21, by=1), labels= FALSE, tck =-0.01) %/%
   axis(side = 2, at = seq(3,21, by=3), labels= FALSE, tck =-0.015) %/%
   text(y = seq(3,21, by=3), labels = ylabs, par("usr")[1], pos = 2, xpd=NA) 
@@ -72,7 +72,7 @@ plot(temp~hab, data = data, type = 'n', las=1,  ylab = "", ylim = c(3,21),yaxt='
        main="", lwd=1, bty = "l", xaxt='n', xlab="")
   arrows(hab, temp.min, hab, temp.max, length=0.05, angle= 90, code=3, col=c("black", "gray60")[as.factor(data$Year)])
   points(hab, temp, type='p', bg = col, pch=c(21,24,22)[as.numeric(data$Habitat)]) 
-  text(1.3,21, "b", font = 2) 
+  text(1.3,21, "B", font = 2) 
   axis(side = 1, at = c(1.45, 1.75, 2.05), labels= c("Marsh", "Eelgrass", "Sand flat"), tck =-0.02) 
   axis(side = 2, at = seq(3,21, by=1), labels= FALSE, tck =-0.01)
   axis(side = 2, at = seq(3,21, by=3), labels= FALSE, tck =-0.015) 
@@ -90,7 +90,7 @@ plot(sal~hab, data = data, type = 'n', las=1,  ylab = "", ylim = c(0,35),yaxt='n
 arrows(hab, sal.min, hab, sal.max, length=0.05, angle= 90, code=3, col=c("black", "gray60")[as.factor(data$Year)])
 points(hab, sal, type='p', bg = col, pch=c(21,24,22)[as.numeric(data$Habitat)]) 
 mtext(expression(paste("Salinity (ppt)")), side = 2,line = 1.5 , outer= FALSE ) 
-text(1.3,35, "c", font = 2) 
+text(1.3,35, "C", font = 2) 
 axis(side = 1, at = c(1.45, 1.75, 2.05), labels= c("Marsh", "Eelgrass", "Sand flat"), tck =-0.02) 
 axis(side = 2, at = seq(0,35, by=1), labels= FALSE, tck =-0.01)
 axis(side = 2, at = seq(0,35, by=5), labels= FALSE, tck =-0.015) 
@@ -101,7 +101,7 @@ plot(do~hab, data = data, type = 'n', las=1,  ylab = "",ylim=c(4,16),yaxt='n', x
 arrows(hab, do.min, hab, do.max, length=0.05, angle= 90, code=3, col=c("black", "gray60")[as.factor(data$Year)]) 
 points(hab, do, type='p', bg = col, pch=c(21,24,22)[as.numeric(data$Habitat)]) 
 mtext(expression(paste("Dissolved Oxygen (mg/L)")), side = 2, line = 1.5 , outer= FALSE ) 
-text(1.3,16, "d", font = 2) 
+text(1.3,16, "D", font = 2) 
 axis(side = 1, at = c(1.45, 1.75, 2.05), labels= c("Marsh", "Eelgrass", "Sand flat"), tck =-0.02) 
 axis(side = 2, at = seq(4,16, by=1), labels= FALSE, tck =-0.01) 
 axis(side = 2, at = seq(4,16, by=2), labels= FALSE, tck =-0.015) 
@@ -113,7 +113,7 @@ arrows(hab, ph.min, hab, ph.max, length=0.05, angle= 90, code=3, col=c("black", 
 points(hab, ph, type='p', bg = col, pch=c(21,24,22)[as.numeric(data$Habitat)]) 
 axis(side = 1, at = c(1.45, 1.75, 2.05), labels= c("Marsh", "Eelgrass", "Sand flat"), tck =-0.02) 
 mtext(expression(paste("pH (logarithmic scale)")), side = 2, line = 1.5 , outer= FALSE ) 
-text(1.3,10.5, "e", font = 2) 
+text(1.3,10.5, "E", font = 2) 
 axis(side = 2, at = seq(6,10.5, by=.5), labels= FALSE, tck =-0.01) 
 axis(side = 2, at = seq(6,10.5, by=1), labels= FALSE, tck =-0.015) 
 text(y = seq(6,10.5, by=1), labels = ph.ylabs, par("usr")[1], pos = 2, xpd=NA) 

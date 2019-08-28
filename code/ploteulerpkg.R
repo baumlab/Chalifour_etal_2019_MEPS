@@ -1,4 +1,4 @@
-##plot.euler package code from: 
+##plot.euler package code needed to make Fig4 Euler diagram; code from: 
 #https://github.com/jolars/eulerr/blob/master/R/plot.euler.R
 
 install.packages("RcppExports")

@@ -19,7 +19,7 @@ Model selection for Chalifour et al 2019 - marsh data
 
 >*NOTES:* 
   
->1) Decided we should NOT include site as a random effect for all beach seine models because the low # of sites and it performed worse than regular GLMs for all.  
+>1) Decided we should NOT include site as a random effect for all beach seine models because the low # of sites and model performance was worse than GLMs without random effect for all species groups.  
   
 >2) Early on in model selection we determined that our data has a negative binomial distribution. All models started with Poisson distributions and all were overdispersed, which was corrected by the neg binomial distribution. All models here use negative binomial distribution with a log link.  
 
@@ -28,7 +28,7 @@ Model selection for Chalifour et al 2019 - marsh data
 >4) We used model averaging following a delta AICc of less than 4
   
 #Chinook beach seine model 
-response = average abundance of Chinook salmon [per beach seine site]  
+response = average abundance of Chinook salmon in marsh sites
 This is 1 of 4 separate marsh models for (1)Chinook, (2)chum, (3)other migratory species and (4)resident species  
   
 ##Load all data - standardize variables, create subgroups from beach seine data  
@@ -139,8 +139,7 @@ corrplot.mixed(M, tl.col = "black", tl.cex = .8)
 ```
 
 ## Model selection  
-### Full model  
-The beach seine models performed better without site as a random effect (e.g. see marsh.chinook.Rmd), and only had a maximum of 5 sites in each data set, so we decided not to include site as a RE in the global models. 
+### Full Chinook model  
 ```{r chin global, tidy = TRUE}
 library(MASS)
   
@@ -156,7 +155,7 @@ vif(glm.nb(abundance~ s.J.date + j2 + Year + s.temp + s.sal + s.do + s.pH + stnw
 
 #Test fit and assumptions of full (global) model - Jday is high (6.18) 
 library(sjPlot)
-#Check model assumptions - note that we are not actually assuming linear relationships with Jday, but can't tell this general function that.    
+#Check model assumptions - note that we are not assuming linear relationships with Jday
 sjp.glm(chin, type = "ma")  
   
 #See pseudo R2 for full model  
@@ -247,8 +246,7 @@ avg.chin<- glm.nb(abundance ~s.J.date + Year + s.temp + stnwidth + s.pH, data = 
 
 summary(avg.chin)# AIC 432.9, deviance explained = 100*((129.963-64.196)/129.963) = 50.6 %
 
-
-vif(avg.chin) # - Jday and temp still above 5 (5.055 and 5.93, respectively)
+vif(avg.chin) 
 
 ###Plot residuals vs. fitted values 
 plot(fitted(avg.chin), resid(avg.chin), main = "Averaged Chinook GLM", xlab = "Fitted", ylab = "Pearson residuals") 
@@ -258,7 +256,7 @@ qqnorm(x = b.chin.hab$abundance, y = resid(avg.chin), main = "Q-Q Averaged Chino
 ```
   
 #Chum beach seine model
-response = average abundance of chum salmon [per beach seine site]  
+response = average abundance of chum salmon  
 This is 2nd of 4 beach models for (1)Chinook, (2)chum, (3)other migratory species and (4)resident species
   
 ##Load all data - standardize variables, create subgroups from beach seine data  
@@ -352,7 +350,7 @@ summary(chum) #AIC 233.64
 ## Now look at the variance inflation factors of this full model  
 vif(chum)
   
-#Check model assumptions - note that we are not actually assuming linear relationships with Jday, but can't tell this general function that.    
+#Check model assumptions - note that we are not assuming linear relationships with Jday
 sjp.glm(chum, type = "ma")  
   
 #See pseudo R2 for full model  
@@ -417,7 +415,7 @@ rownames(chum.coef)[8] <- "Julian day^2"
 chum.coef$Variable <- rownames(chum.coef)
 chum.coef$Variable <- as.factor(chum.coef$Variable)
 
-##For cases with Jday^2, need to use plotmath to create symbol. This means manually creating x axis scale (note coord flip for plot), and you will need to plot the original version first to see the correct order for the labels. It labels them from top to bottom (then flipped, so bottom to top), not by factor level.
+##For cases with Jday^2, need to use plotmath to create symbol. 
 labels <- expression("Julian day","J. day"^2,"Mean turb.", "Temp.", "Sal.","Veg. elev.","pH","Year","D.O.")
 labels[[1]] <- bquote(bold(.(labels[[1]])))
 labels[[9]] <- bquote(bold(.(labels[[9]])))
@@ -437,7 +435,7 @@ avg.chum<- glm.nb(abundance ~s.do, data = b.chum.hab, na.action="na.fail")
 
 summary(avg.chum)# AIC 226.03  
 
-# vif(avg.chum) ## Can't run VIF because only one variable!
+# vif(avg.chum) ## Redundant 
 
 ###Plot residuals vs. fitted values 
 plot(fitted(avg.chum), resid(avg.chum), main = "Averaged Chum GLM", xlab = "Fitted", ylab = "Pearson residuals") 
@@ -448,7 +446,7 @@ qqnorm(x = b.chum.hab$abundance, y = resid(avg.chum), main = "Q-Q Averaged Chum 
  
 
 #Migratory beach seine model
-response = average abundance of migratory fishes [per beach seine site]  
+response = average abundance of migratory fishes
 This is 3rd of 4 beach models for (1)Chinook, (2)migra, (3)other migratory species and (4)resident species
   
 ##Load all data - standardize variables, create subgroups from beach seine data 
@@ -531,7 +529,7 @@ ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot for all vari
 
 ## Model selection  
 ### Full model  
-Due to the very small sample size for other migratory fishes (# observations = 17), there were issues with the model assumptions with several parameters, and the global model was reduced to the maximum number of parameters than met assumptions and allowed the model to converge. Note that models with fewer, different parameters also converged (namely with temperature but without mean turb and stnwidth), but the AIC was worse and we felt the global model should include as many parameters as possible. The outliers in this data set caused a few parameters to always give errors: Jdate, J2 and pH. These were removed from the global model. Year had VIF over 10, so removed and AIC improved by delta 2 and VIF all were reduced to below 1.       
+Due to the very small sample size for other migratory fishes (# observations = 17), there were issues with the model assumptions with several parameters, and the global model was reduced to the maximum number of parameters than met assumptions and allowed the model to converge. Note that models with fewer, different parameters also converged (namely with temperature but without mean turb and stnwidth), but the AIC was worse and we felt the global model should include as many parameters as possible. The outliers in this data set caused a few parameters to always give errors: Jdate, J2 and pH. These were removed from the global model. Year had VIF over 10, so removed, which improved AIC by delta 2 and VIF all were reduced to below 1.       
 ```{r migra global, tidy = TRUE}
 
 ## Migratory: full model with top habitat variables
@@ -540,7 +538,7 @@ summary(migra) #AIC 104.31
 vif(migra)
 
   
-#Check model assumptions - note that we are not actually assuming linear relationships with Jday, but can't tell this general function that.    
+#Check model assumptions   
 sjp.glm(migra, type = "ma")  
   
 #See pseudo R2 for full model  
@@ -630,13 +628,13 @@ qqnorm(x = b.migra.hab$abundance, y = resid(avg.migra), main = "Q-Q Averaged Mig
  
  
 #Resident beach seine model
-response = average abundance of residents [per beach seine site]  
+response = average abundance of residents
 This is 4th of 4 beach models for (1)Chinook, (2)res, (3)other migratory species and (4)resident species
   
 ##Load all data - standardize variables, create subgroups from beach seine data 
 ```{r res dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
   
-###Grab just resident catch - automatically removes any 0s or unidentified species.  
+###Grab just resident catch
 #4  
 b.4<- b[which(b$class == "resident"),]
   
@@ -781,7 +779,7 @@ res.coef <- res.coef[-1, ]
 res.coef$Variable <- rownames(res.coef)
 res.coef$Variable <- as.factor(res.coef$Variable)
 
-##For cases with Jday^2, need to use plotmath to create symbol. This means manually creating x axis scale (note coord flip for plot), and you will need to plot the original version first to see the correct order for the labels. It labels them from top to bottom (then flipped, so bottom to top), not by factor level.
+##For cases with Jday^2, need to use plotmath to create symbol. 
 labels <- expression("J. day"^2,"pH","Width","Sal.","Veg. elev.","D.O.","Mean turb.","Julian day","Year")
 labels[[1]] <- bquote(bold(.(labels[[1]])))
 labels[[2]] <- bquote(bold(.(labels[[2]])))

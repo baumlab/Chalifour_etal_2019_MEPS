@@ -19,19 +19,19 @@ Model selection for Ch 1 - eelgrass and sand flat data
 
 >*NOTES:* 
   
->1) Decided we should include site as a random effect for all purse seine models because the # of sites is well above 5 and so we deemed it important to acknowledge the nested nature of our sampling design.  
+>1) Decided we should include site as a random effect for all purse seine models because the # of sites is well above 5 and so we deemed it important to acknowledge the nested nature of our sampling design.
   
 >2) Early on in model selection we determined that our data has a negative binomial distribution. All models started with Poisson distributions and all were overdispersed, which was corrected by the neg binomial distribution. All models here use negative binomial distribution with a log link.  
   
 >3) We found that the relationship between abundance and Julian day is commonly better described as quadratic (vs. linear), and have incorporated this into the global model (i.e including Julian day as two parameters: Jday + Jday^2). In some cases this term was removed from the global model if it did not converge (see purse.chinook.Rmd)
   
->4) Habitat variables were tested for collinearity, and through this process we narrowed them down to Leaf Area Index and Mean Turbidity only to include in the global model. These two variables still do covary, but make biological sense as separate variables. 
+>4) Habitat variables were tested for collinearity, and through this process we narrowed them down to Leaf Area Index and Mean Turbidity only to include in the global model. These two variables still do covary to some degree, but make biological sense as separate variables. 
     
->4.5)  Site E5 (South Ferry) was missing measurements for leaf area index, so the values from site E6 (Point Roberts) were used.  Site E7 (near coal port in intercauseway) was missing values for turbidity, so the mean of sites E3 and E4 (Intercauseway N and S) were used.  Archipelago values for leaf area index were used for sites E3, E4, and E7.  All eelgrass measurements were set to 0 for sand flat sites. Mean turbidity values were calculated for all sites (including sand flat)  
+>4.5)  Site E5 (South Ferry) was missing measurements for leaf area index, so the values from site E6 (Point Roberts) were used.  Site E7 (near coal port in intercauseway) was missing values for turbidity, so the mean of sites E3 and E4 (Intercauseway N and S) were used.  Archipelago reported values for leaf area index were used for sites E3, E4, and E7.  All eelgrass measurements were set to 0 for sand flat sites. Mean turbidity values were calculated for all sites (including sand flat)  
   
 >5) We used AICc to rank all models in dredge, as it penalizes the strength of likelihood more for very small sample sizes, and is more adaptive to moderate sample sizes, so that we could apply the same information criterion across all models (Harrison et al 2018; Brewer et al 2016) 
   
->6) We used model averaging following a delta AICc of less than 4, [[and followed the nesting rule to remove any artificially added models that were represented by smaller models with better AICc scores (Harrison et al 2018).]]- didnt do this because weights were low enough anyway so arbitrary. Kept at delta 4 because weights dropped off considerably before even that point.   The choice of cuttoff is within the accepted standard of ranges to incorporate enough uncertainty while also having some selectivity. 
+>6) We used model averaging following a delta AICc of less than 4; weights dropped off considerably before even that point.   The choice of cuttoff is within the accepted standard of ranges to incorporate enough uncertainty while also having some selectivity. 
   
 #Chinook purse seine model  
 response = average abundance of Chinook salmon [per purse seine site]  
@@ -143,7 +143,7 @@ ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot habitat vari
 
 ## Model selection  
 ### Full model  
-We started with a full global model with all the abiotic factors and all the habitat covariates included as well as site as a random effect. That model did not converge, so we performed manual backward selection beginning with the variables with highest VIF, and retaining the top variables from the corresponding marsh model, until the model converged. Throughout the process we viewed the VIF and model assumption plots, and used a hypothesis-based approach to select variables (as well as trying multiple iterations).  
+We started with a full global model with all the abiotic factors and all the habitat covariates included as well as site as a random effect. That model did not converge, so we performed manual backward selection beginning with the variables with highest VIF, and retaining the top variables from the corresponding marsh model, until the model converged. Throughout the process we viewed the VIF and model assumption plots, and validated our variable selection using a hypothesis-based approach (as well as testing multiple iterations).  
 ```{r chin global, tidy = TRUE, message=FALSE}
 library(MASS)
 library(lme4)
@@ -298,7 +298,7 @@ This is 2nd of 4 purse models for (1)Chinook, (2)chum, (3)other migratory specie
 ##Load all data - standardize variables, create subgroups from purse seine data 
 ```{r chum dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
   
-###Grab just chum catch - automatically removes any 0s or unidentified species.  
+###Grab just chum catch 
 #2  
 p.2<- purse[which(purse$Species == "Chum"),]
 
@@ -362,7 +362,7 @@ ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot habitat vari
 
 ## Model selection  
 ### Full model  
-We started with a full global model with all the abiotic factors and all the habitat covariates included as well as site as a random effect. That model did not converge, so we performed manual backward selection beginning with the variables with highest VIF, and retaining the top variables from the corresponding marsh model, until the model converged. Throughout the process we viewed the VIF and model assumption plots, and used a hypothesis-based approach to select variables (as well as trying multiple iterations).  
+  
 ```{r chum global, tidy = TRUE, message=FALSE}
 
 ## Chum: full model with habitat  variables
@@ -467,7 +467,7 @@ This is 3rd of 4 purse models for (1)Chinook, (2)migra, (3)other migratory speci
 ##Load all data - standardize variables, create subgroups from purse seine data 
 ```{r migra dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
   
-###Grab just migratory catch - automatically removes any 0s or unidentified species.  
+###Grab just migratory catch 
 #3  
 p.3<- purse[which(purse$class == "migratory"),]; p.3<- p.3[which(p.3$Species != "Chinook"),]; p.3<- p.3[which(p.3$Species != "Chum"),]
 
@@ -531,7 +531,7 @@ ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot habitat vari
 
 ## Model selection  
 ### Full model  
-We started with a full global model with all the abiotic factors and all the habitat covariates included as well as site as a random effect. That model did not converge, so we performed manual backward selection beginning with the variables with highest VIF, and retaining the top variables from the corresponding marsh model, until the model converged. Throughout the process we viewed the VIF and model assumption plots, and used a hypothesis-based approach to select variables (as well as trying multiple iterations). In this case, the marsh model did include j^2, but looking at the purse migratory abundance distribution over time (plot above), this didn't make sense. We removed it first and re-ran VIF and found that they all improved, supporting that this was not a good fit for this data. The marsh model also contained temp, but the distribution was quite odd with this subset and the model converged when it was removed so we left it out.
+In this case, the marsh model did include j^2, but looking at the purse migratory abundance distribution over time (plot above), this didn't make sense. We removed it first and re-ran VIF and found that they all improved, supporting that this was not a good fit for this data. The marsh model also contained temp, but the distribution was quite odd with this subset and the model converged when it was removed so we left it out.
 ```{r migra global, tidy = TRUE, message=FALSE}
 
 ## Migratory: full model with habitat  variables
@@ -632,7 +632,7 @@ This is 4th of 4 purse models for (1)Chinook, (2)res, (3)other migratory species
 ##Load all data - standardize variables, create subgroups from purse seine data 
 ```{r res dataprep, message=FALSE, warning=FALSE, tidy=TRUE}
   
-###Grab just resident catch - automatically removes any 0s or unidentified species.  
+###Grab just resident catch
 #4  
 p.4<- purse[which(purse$class == "resident"),]
 
@@ -695,7 +695,7 @@ ggpairs(data = na.omit(habcovar), title = "Pearson Correlation plot habitat vari
   
 ## Model selection  
 ### Full model  
-We started with a full global model with all the abiotic factors and all the habitat covariates included as well as site as a random effect. Model did not converge - found J2 was biggest contributor (even just Year + Jday + Habitat + j2 did not converge). Once we removed that and the highly correlated habitat vars, model converged.
+Model did not converge - found J2 was biggest contributor (even just Year + Jday + Habitat + j2 did not converge). Once we removed that and the highly correlated habitat vars, model converged.
 ```{r res global, tidy = TRUE, message=FALSE}
   
 ## Resident: full model with habitat  variables
@@ -725,7 +725,7 @@ rsquared(p.res.1, aicc=TRUE)
 ``` 
   
 ### Model selection - dredge    
-Then continued to dredge function to determine optimal model using AICc (probably unnecessary but have done for all others: res has 187 observations at 13 sites).
+Then continued to dredge function to determine optimal model using AICc (to maintain consistency with all others: res has 187 observations at 13 sites).
 ```{r res model sel., tidy=TRUE, collapse=TRUE, warning=FALSE, message=FALSE}
   
 # Generate model set

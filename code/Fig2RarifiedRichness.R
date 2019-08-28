@@ -1,12 +1,10 @@
 #Fig_2_Chalifour_et_al_2019_MEPS_revised
 #Rarified richness 
 library(here)
-here()
 
 ##load abiotic data
-all<- read.csv("data/all_clean.csv")
+all<- read.csv("data/all_clean.csv") ### all catch by Species (includes metadata and single row per fish observation)  
 
-### all catch by Species  
 library(plyr)
 
 ##Summary  
@@ -27,7 +25,7 @@ sum(all.sp[which(all.sp$Year == "0"),]$abund)
 sum(all.sp[which(all.sp$Year == "1"),]$abund)  
 
 # Rarefy 
-## **V1: Habitat** compare by habitat, including site_day as replicates for each habitat matrix
+## **Habitat** compare by habitat, including site_day as replicates for each habitat matrix
 #Script modified from Iacarella et al. 2018 (https://doi.org/10.1111/gcb.14090)
 
 #Sample based species richness rarefaction curves using iNEXT  
@@ -53,7 +51,7 @@ species.full$abund[which(species.full$Species%in%("Unidentified flatfish"))]<- N
 
 species.full<- na.omit(species.full) #Now remove all rows that contain NA values, run species summary again to check all empty levels are correct  
 species.full$Species<- factor(species.full$Species) ##drop unused species levels  
-head(species.full) ## can see we have data in format of unique rows for each habitat, species, site observation by day (except removed day) - abundance represents # of individuals of that species at that site in all 3 sets. 
+head(species.full) ## can see we have data in format of unique rows for each habitat, species, site observation by sampling event - abundance represents # of individuals of that species at that site in all 3 sets. 
 
 ## simplify data into species counts by habitat, site, and day
 species<- species.full[, c("Year", "J.date", "Habitat", "Site", "Species", "abund")]  
@@ -143,7 +141,7 @@ gg.rich1<- ggplot(f, aes(x=x,y=y,shape=site)) +
         panel.grid.minor=element_blank(),panel.grid.major=element_blank(), panel.border = element_blank())
 gg.rich1
 
-### FINAL PLOT 1.2, panel 0, above habitat plot reduced in size to fit with season panel plots
+### FINAL PLOT 1.2, panel 1, above habitat plot reduced in size to fit with season panel plots
 
 # set up colors for season
 fills <- c("steelblue","forestgreen","goldenrod1")
@@ -158,7 +156,7 @@ gg.rich2<- ggplot(f, aes(x=x,y=y,shape=site)) +
   geom_point(aes(shape=site, fill=site, colour=site), size=5, data=f.point) + 
   scale_shape_manual(values=shapes,guide=FALSE) + scale_colour_manual(values=colours,guide=FALSE) + 
   scale_fill_manual(values=fills,guide=FALSE) +
-  labs(x="", y="Species richness") +
+  labs(x="", y="") +
   theme_bw() +   
   scale_y_continuous(limits=c(0,50),breaks=seq(0,50,by=10)) +
   scale_x_continuous(limits=c(0,180),breaks=seq(0,180,by=40)) +
@@ -342,7 +340,7 @@ gg.richeg<- ggplot(f, aes(x=x,y=y,shape=site)) +
   scale_linetype_manual(values=c("solid","dashed"),breaks=c("interpolation","extrapolation"),labels=c("Interpolation","Extrapolation"),name="Method",guide=FALSE) + scale_colour_manual(values=colours,guide=FALSE) +
   geom_point(aes(shape=site, fill=site), colour="white", size=5, data=f.point) +
   scale_shape_manual(values=shapes,guide=FALSE) + scale_fill_manual(values=fills,guide=FALSE) +
-  labs(x="", y="Species richness") +
+  labs(x="", y="") +
   theme_bw() +   
   scale_x_continuous(limits=c(0,75),breaks=seq(0,75,by=15)) +
   theme(axis.line.x = element_line(color="black", size = 0.5),
@@ -356,7 +354,7 @@ gg.richeg<- ggplot(f, aes(x=x,y=y,shape=site)) +
         plot.margin = margin(2,2,2,2, "pt"))
 gg.richeg
 
-# **Note that for eelgrass, summer is significantly higher** than spring and fall at the point of comparison (fall, #sampling events = 12). Summer now includes May. Fall is lowest  
+# **Note that for eelgrass, summer is significantly higher** than spring and fall at the point of comparison (fall, #sampling events = 12). Summer includes May. Fall is lowest  
                                                                                                             
 ### panel 4, Season comparison, broken into habitats: Sand flat  
 #Fall is lowest again, between marsh and eelgrass. U = 9, T = 25  
@@ -391,7 +389,7 @@ gg.richsf<- ggplot(f, aes(x=x,y=y,shape=site)) +
   scale_linetype_manual(values=c("solid","dashed"),breaks=c("interpolation","extrapolation"),labels=c("Interpolation","Extrapolation"),name="Method", guide=FALSE) + scale_colour_manual(values=colours, guide=FALSE) +
   geom_point(aes(shape=site, fill=site), colour="white", size=5, data=f.point) +
   scale_shape_manual(values=shapes, guide=FALSE) + scale_fill_manual(values=fills, guide=FALSE) +
-  labs(x="Number of sampling events", y="Species richness") +
+  labs(x="Number of sampling events", y="") +
   theme_bw() +   
   scale_x_continuous(limits=c(0,75),breaks=seq(0,75,by=15)) +
   theme(axis.line.x = element_line(color="black", size = 0.5),
@@ -440,9 +438,11 @@ gg.richeg<- ggplotGrob(gg.richeg)
 gg.richsf<- ggplotGrob(gg.richsf)
 
 ## Add panel labels
-a<- grobTree(textGrob("a", x=0.15, y=0.98, gp=gpar(col="black", fontsize=13, fontface="bold")))
-b<- grobTree(textGrob("b", x=0.15, y=0.725, gp=gpar(col="black", fontsize=13, fontface="bold")))
-c<- grobTree(textGrob("c", x=0.15, y=0.48, gp=gpar(col="black", fontsize=13, fontface="bold")))
-d<-grobTree(textGrob("d", x=0.15, y=0.225, gp=gpar(col="black", fontsize=13, fontface="bold")))
+a<- grobTree(textGrob("A", x=0.15, y=0.98, gp=gpar(col="black", fontsize=13, fontface="bold")))
+b<- grobTree(textGrob("B", x=0.15, y=0.725, gp=gpar(col="black", fontsize=13, fontface="bold")))
+c<- grobTree(textGrob("C", x=0.15, y=0.48, gp=gpar(col="black", fontsize=13, fontface="bold")))
+d<-grobTree(textGrob("D", x=0.15, y=0.225, gp=gpar(col="black", fontsize=13, fontface="bold")))
 
 ggarrange(arrangeGrob(gg.rich2, gg.richm, gg.richeg, gg.richsf, nrow=4), arrangeGrob(hab_legend, marsh_legend, eel_legend, sand_legend, nrow=4), widths = c(3.8,1.2)) + annotation_custom(a) + annotation_custom(b) + annotation_custom(c) + annotation_custom(d)
+
+

@@ -1,14 +1,13 @@
 #Fig_3_Chalifour_et_al_2019_MEPS
 
 library(here)
-here()
 
 ### Top ten most abundant species by habitat type  
 
 #load data
 
 #2016
-top16<- read.csv("data/2016catchsum.csv")
+top16<- read.csv("data/2016catchsum.csv") #pre-summarized data from all_clean.csv
 
 top16<- top16[,c(1:4)]
 
@@ -24,10 +23,12 @@ EGtop10_2016<- subset(EGtop10_2016, Species %in% c("Shiner surfperch", "Three-sp
 EGtop10_2016$Species<- factor(EGtop10_2016$Species) ## Drop unused levels
 EG16<- EGtop10_2016[order(EGtop10_2016$abundance, decreasing=TRUE),]
 EG16$Species<- factor(EG16$Species, levels = c("Shiner surfperch", "Three-spined stickleback", "Bay pipefish", "Herring", "Surf smelt", "Pacific sand lance", "Tubesnout", "Starry flounder", "Saddleback gunnel", "Pile perch"))
+
 ##Shiners = 18509, Stickleback = 6868   
 ##Manually reduce outlier numbers to fit on plot:  
 EG16$abundance[which(EG16$Species%in%("Shiner surfperch"))]<-1000
 EG16$abundance[which(EG16$Species%in%("Three-spined stickleback"))]<-1000
+
 
 SFtop10_2016<- top16[which(top16$Habitat == c("Sand flat")),]
 SFtop10_2016<- subset(SFtop10_2016, Species %in% c("Shiner surfperch", "Three-spined stickleback", "Northern anchovy", "Herring", "Unidentified flatfish", "Arrow goby", "Chinook", "Starry flounder", "Unidentified larval fish 2", "Sand sole"))
@@ -40,7 +41,7 @@ levels(SF16$Species)<- c("Shiner surfperch", "Northern anchovy", "Starry flounde
 SF16$abundance[which(SF16$Species%in%("Shiner surfperch"))]<-1000
 
 #2017
-top17<- read.csv("data/2017catchsum.csv")
+top17<- read.csv("data/2017catchsum.csv") #pre-summarized data from all_clean.csv
 Mtop10_2017<- top17[which(top17$Habitat == c("Marsh")),]
 Mtop10_2017<- subset(Mtop10_2017, Species %in% c("Three-spined stickleback", "Shiner surfperch", "Chinook", "Peamouth chub", "Chum", "Prickly sculpin", "Staghorn sculpin", "Starry flounder", "Unidentified flatfish", "Unidentified sculpin"))
 Mtop10_2017$Species<- factor(Mtop10_2017$Species) ## Drop unused levels
@@ -69,7 +70,7 @@ top<- rbind(Mtop10_2016, Mtop10_2017, EGtop10_2016, EGtop10_2017, SFtop10_2016, 
 levels(top$Species)
 row.names(top)<- 1:59
 
-##Add class back in (not in this data set - oops)  
+##Add class back in referencing all.class2.csv (not in this data set)  
 top$Class<- c(
   "Migratory", "Migratory","Migratory","Migratory","Resident","Resident","Resident","Resident","Resident","Resident","Migratory","Migratory","Resident","Resident","Resident","Resident","Resident","Resident","Resident","Resident","Resident","Resident","Migratory","Resident","Resident","Resident","Resident","Migratory","Resident","Resident","Resident","Migratory","Migratory","Resident","Migratory","Resident","Resident","Migratory","Resident","Resident","Resident","Migratory","Resident","Migratory","Resident","Resident","Resident","Resident","Resident","Unclassified","Resident","Migratory","Migratory","Resident","Migratory","Resident","Resident","Resident","Resident"
 )
@@ -191,8 +192,8 @@ splot2<- ggplot(SF17, aes(x = Species, y = abundance)) +
     axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10)
   )  
 
-##Uses original ggplots from above, with colour and label scales identified prior. Does not use legend plots.   
-###First should remove 2nd printout page by converting individually to ggplotGrobs... :/  
+##Plot together:
+#First should remove 2nd printout page by converting individually to ggplotGrobs
 mplot<- ggplotGrob(mplot)
 mplot2<- ggplotGrob(mplot2) 
 egplot<-ggplotGrob(egplot) 
@@ -285,6 +286,7 @@ a<-grobTree(textGrob("A", x=0.045, y=0.92, gp=gpar(col="black", fontsize=13, fon
 b<-grobTree(textGrob("B", x=0.045, y=0.62, gp=gpar(col="black", fontsize=13, fontface="bold")))
 c<-grobTree(textGrob("C", x=0.045, y=0.29, gp=gpar(col="black", fontsize=13, fontface="bold")))
 
+#Final plot
 ggarrange(arrangeGrob(mplot, mplot2, legendgrob1, egplot, egplot2, splot, splot2,legendspace, layout_matrix = lay),align = "hv") + annotation_custom(abun1) + annotation_custom(abun2) + annotation_custom(ellips1) + annotation_custom(ellips2) + annotation_custom(ellips3) + annotation_custom(abun3) + annotation_custom(ellips4) + annotation_custom(abun4) + annotation_custom(ellips5) + annotation_custom(abun5) + annotation_custom(yr1) + annotation_custom(yr2) + annotation_custom(ax_y2) + annotation_custom(a) + annotation_custom(b) + annotation_custom(c)
 
 

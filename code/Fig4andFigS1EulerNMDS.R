@@ -1,7 +1,6 @@
 ######## R Script for Chalifour et al MEPS Fig 4 Euler and Fig S1 NMDS Diagrams #########
 
 library(here)
-here()
 
 ### Load Data
 all<- read.csv("data/all_clean.csv") ### all catch by Species (includes metadata and single row per fish observation)  
@@ -49,7 +48,7 @@ eulerr_options(labels = list(fontsize = 16), fills = list(fill = c("forestgreen"
 
 # run function on data matrix:
 V1<- euler(spp_pres, shape = "ellipse")
-# plot:
+# plot (note that plot output varies slightly with each iteration using euler, same results):
 pdf("final.figures/Fig4.pdf", width = 6.65, height = 5.9, pointsize = 16)
 
 plot(V1, quantities=TRUE)
@@ -58,7 +57,7 @@ dev.off()
 citation("eulerr")
 
 ##### NMDS 
-## 1 species by habitat, all sites pooled - not used
+## 1 species by habitat, all sites pooled - NOT USED
 species.m<-as.data.frame.matrix(table(species[c(1,2)])) # now have habitat~species matrix, showing # occurences in each 
 library(vegan)
 ord<- metaMDS(species.m) # stress near 0, may not have enough data
@@ -69,12 +68,12 @@ ordiplot(ord, type = "n")
 orditorp(ord, display = "species", col = "blue", air = 0.01)
 orditorp(ord, display="sites", cex=1.25, air=0.01)
 
-## 2 species by site - this is final version used
+## 2 species by site - this is final version USED
 ## simplify data into species counts by site
 species2<- species.full[, c("Site", "Species")] 
 species.m.s<- as.data.frame.matrix(table(species2[c(1,2)]))
 ord2<- metaMDS(species.m.s) # stress 0.09265 -- much better
-stressplot(ord2) # pretty good, not too much scatter. non-metric fit R2=0.991, linear fit R2 = 0.96
+stressplot(ord2) # good, not too much scatter. non-metric fit R2=0.991, linear fit R2 = 0.96
 gof<-goodness(ord2)
 plot(ord2, display="sites", type="n")
 points(ord2, display = "sites", cex=2*gof/mean(gof)) #display plot of goodness of fit proportions for each site
@@ -96,7 +95,7 @@ text(1, 0.6, "stress = 0.09")
 quartz.save("final.figures/FigS1.pdf", width = 7.5, height = 6, pointsize = 16, type = "pdf", device = dev.cur())
 dev.off()
 
-# plot
+# plot simple
 png("final.figures/NMDS.png", width = 169, height = 150, units = "mm", res = 600, type = "cairo", pointsize = 16)
 ordiplot(ord2, type = "n")
 orditorp(ord2, display = "species", col = "grey", air = 0.05)
